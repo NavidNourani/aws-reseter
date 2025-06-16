@@ -5,6 +5,7 @@ const cors = require('cors');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const REQUEST_TIMEOUT_MS = 15000; // 10 seconds timeout
 
 // Configure AWS
 AWS.config.update({
@@ -19,6 +20,14 @@ const lightsail = new AWS.Lightsail();
 app.use(cors());
 app.use(express.json());
 
+// Helper function to add timeout to AWS requests
+const withTimeout = (promise) => {
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timeout')), REQUEST_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeoutPromise]);
+};
+
 // Get server status
 app.get('/api/status', async (req, res) => {
   try {
@@ -26,7 +35,7 @@ app.get('/api/status', async (req, res) => {
       instanceName: process.env.LIGHTSAIL_INSTANCE_NAME
     };
 
-    const data = await lightsail.getInstance(params).promise();
+    const data = await withTimeout(lightsail.getInstance(params).promise());
     const instance = data.instance;
 
     res.json({
@@ -36,7 +45,11 @@ app.get('/api/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting instance status:', error);
-    res.status(500).json({ error: 'Failed to get instance status' });
+    if (error.message === 'Request timeout') {
+      res.status(504).json({ error: `Request timed out after ${REQUEST_TIMEOUT_MS/1000} seconds` });
+    } else {
+      res.status(500).json({ error: 'Failed to get instance status' });
+    }
   }
 });
 
@@ -47,11 +60,15 @@ app.post('/api/stop', async (req, res) => {
       instanceName: process.env.LIGHTSAIL_INSTANCE_NAME
     };
 
-    await lightsail.stopInstance(params).promise();
+    await withTimeout(lightsail.stopInstance(params).promise());
     res.json({ message: 'Server stop initiated successfully' });
   } catch (error) {
     console.error('Error stopping instance:', error);
-    res.status(500).json({ error: 'Failed to stop instance' });
+    if (error.message === 'Request timeout') {
+      res.status(504).json({ error: `Request timed out after ${REQUEST_TIMEOUT_MS/1000} seconds` });
+    } else {
+      res.status(500).json({ error: 'Failed to stop instance' });
+    }
   }
 });
 
@@ -62,11 +79,15 @@ app.post('/api/start', async (req, res) => {
       instanceName: process.env.LIGHTSAIL_INSTANCE_NAME
     };
 
-    await lightsail.startInstance(params).promise();
+    await withTimeout(lightsail.startInstance(params).promise());
     res.json({ message: 'Server start initiated successfully' });
   } catch (error) {
     console.error('Error starting instance:', error);
-    res.status(500).json({ error: 'Failed to start instance' });
+    if (error.message === 'Request timeout') {
+      res.status(504).json({ error: `Request timed out after ${REQUEST_TIMEOUT_MS/1000} seconds` });
+    } else {
+      res.status(500).json({ error: 'Failed to start instance' });
+    }
   }
 });
 
