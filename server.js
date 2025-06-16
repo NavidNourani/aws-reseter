@@ -20,6 +20,15 @@ const lightsail = new AWS.Lightsail();
 app.use(cors());
 app.use(express.json());
 
+// Secret key middleware
+const validateSecretKey = (req, res, next) => {
+  const secretKey = req.query.secret;
+  if (!secretKey || secretKey !== process.env.API_SECRET_KEY) {
+    return res.status(401).json({ error: 'Invalid or missing secret key' });
+  }
+  next();
+};
+
 // Helper function to add timeout to AWS requests
 const withTimeout = (promise) => {
   const timeoutPromise = new Promise((_, reject) => {
@@ -29,7 +38,7 @@ const withTimeout = (promise) => {
 };
 
 // Get server status
-app.get('/api/status', async (req, res) => {
+app.get('/api/status', validateSecretKey, async (req, res) => {
   try {
     const params = {
       instanceName: process.env.LIGHTSAIL_INSTANCE_NAME
@@ -54,7 +63,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 // Stop server
-app.post('/api/stop', async (req, res) => {
+app.get('/api/stop', validateSecretKey, async (req, res) => {
   try {
     const params = {
       instanceName: process.env.LIGHTSAIL_INSTANCE_NAME
@@ -73,7 +82,7 @@ app.post('/api/stop', async (req, res) => {
 });
 
 // Start server
-app.post('/api/start', async (req, res) => {
+app.get('/api/start', validateSecretKey, async (req, res) => {
   try {
     const params = {
       instanceName: process.env.LIGHTSAIL_INSTANCE_NAME
